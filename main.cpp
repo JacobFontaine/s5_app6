@@ -14,6 +14,7 @@ DigitalOut cereal(p9);
 InterruptIn  pinterrupt(p14);
 DigitalIn input(p14);
 Timer timeBoi;
+InterruptIn buttonInterrupt(p8);
 
 int beginValue=0;
 int endValue=0;
@@ -26,12 +27,15 @@ bool rxStandby = true;
 bool rxSync = false;
 bool incompleteByte = true;
 bool rxStart = false;
+bool rxHeader = false;
 uint16_t rxRate = 0;
 uint16_t counter = 0;
 uint8_t bitCounter = 0;
 uint8_t byte = 0;
-uint8_t trameRebuild[36] = {};
+uint8_t frameHeader[2] = {};
+uint8_t trameRebuild[37] = {};
 uint8_t trameRebuildCounter = 0;
+uint8_t finalFrame[35] = {};
 
 
 static void insertHeader()
@@ -108,12 +112,14 @@ void rebuildMessage(uint8_t bit) {
 			else {
 				rxStart = false;
 				trameRebuildCounter = 0;
+				for (int i = 2; i < 37; i++) {
+					printf("%02x\n\r", trameRebuild[i]);
+				}
 				// I AM DONE
 			}
 		}
 		
 		else if (rxStart) {
-			
 			trameRebuild[trameRebuildCounter] = byte;
 			trameRebuildCounter++;
 		}
@@ -142,7 +148,7 @@ void rise()
 		printf("COUNTER: %d\n\r", counter);
 		timeBoi.reset();
 	}
-	else if (timeBoi.read_ms() > (1	* rxRate)) {
+	else if (timeBoi.read_ms() > (0.8	* rxRate)) {
 		timeBoi.reset();
 		rebuildMessage(0);
 	}
@@ -170,11 +176,21 @@ void fall()
 		}
 	}
 	
-	else if (timeBoi.read_ms() > (1 * rxRate)) {
+	else if (timeBoi.read_ms() > (0.8 * rxRate)) {
 		timeBoi.reset();
 		rebuildMessage(1);
 	}
 }
+
+void checkButton() {
+	for (int i = 0; i < 80; i++) {
+		for (int index = 0; index < 8; index++) {
+			int penis = ((trameManchester[i] >> (7-index)) & 0x01);
+			cereal = penis;
+			wait_ms(40);
+		}
+	}
+}	
 
 int main()
 { 
@@ -194,17 +210,18 @@ int main()
 	//Ecodage Manchester
 	encodageManchester();
 	
-	pinterrupt.rise(&rise);
-	pinterrupt.fall(&fall);
+	wait(5);
 	
-	for (int i = 0; i < 80; i++) {
-		for (int index = 0; index < 8; index++) {
-			int penis = ((trameManchester[i] >> (7-index)) & 0x01);
-			cereal = penis;
-			wait_ms(50);
-		}
-	}
-	for (int i = 0; i < 37; i++) {
-		printf("%02x\n\r", trameRebuild[i]);
-	}
+	buttonInterrupt.rise(&checkButton);
+	
+//	pinterrupt.rise(&rise);
+//	pinterrupt.fall(&fall);
+	
+//	for (int i = 2; i < 37; i++) {
+//		finalFrame[i-2] = trameRebuild[i];
+//		printf("%02x\n\r", trameRebuild[i]);
+//	}
+//	
+//	int vagine = crc16(finalFrame, 35);
+//	printf("VAGINE VALUE: %d\n\r", vagine);
 }
