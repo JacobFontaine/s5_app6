@@ -8,33 +8,29 @@ Description: Code du Noeud Coordinateur
 
 #include "mbed.h"
 
+#define CRC 0xFFFF
 
-PwmOut led(LED2);
-PwmOut pin(p21);
-InterruptIn  pinterrupt(p14);
-int beginValue=0;
-int endValue=0;
-Timer timeBoi;
+uint8_t data[6] = {0x61, 0x6c, 0x6c, 0x6f, 0x00, 0x00};
+uint8_t dataTest[8] = {0x61, 0x6c, 0x6c, 0x6f, 0x00, 0x01, 0x27, 0xE5};
 
+uint16_t crc16(uint8_t* data, uint8_t length){
+	uint8_t temp;
+	uint16_t crc = CRC;
 
-void functionBoiRise()
-{
-		//printf("%d\n\r",endValue-beginValue);
-		timeBoi.start();
+	for (uint8_t i = 0; i < length; i++) {
+			temp = crc >> 8 ^ data[i];
+			temp ^= temp>>4;
+			crc = (crc << 8) ^ ((uint16_t)(temp << 12)) ^ ((uint16_t)(temp <<5)) ^ ((uint16_t)temp);
+	}
+	return crc;
 }
-void functionBoiFall()
-{
-			timeBoi.stop();
-			printf("%d\n\r",timeBoi.read_us());
-			timeBoi.reset();
-}
-int main()
-{  
-	led.period(1.0);  // 4 second period
-  led.write(0.1);
-	pin.period(1.0);  // 4 second period
-  pin.write(0.1);
-		pinterrupt.rise(&functionBoiRise);
-		pinterrupt.fall(&functionBoiFall);
-	while(1);
+
+int main() {  
+
+	while(1) {
+		printf("crc is: %04x\n\r", crc16(data, 6));
+		wait(1);
+		printf("Remainder is: %04x\n\r", crc16(dataTest, 8));
+		wait(0.5);
+	}
 }
