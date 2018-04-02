@@ -10,18 +10,29 @@ Description: Code du Noeud Coordinateur
 
 #define CRC 0xFFFF
 
-PwmOut led(LED2);
-PwmOut pin(p21);
+DigitalOut cereal(p9);
 InterruptIn  pinterrupt(p14);
+DigitalIn input(p14);
+Timer timeBoi;
+
 int beginValue=0;
 int endValue=0;
-Timer timeBoi;
+
 uint8_t message[33] = "Bonjour la gang";
 uint8_t trameInitale[40];
 uint8_t trameManchester[80];
 
-uint8_t data[6] = {0x61, 0x6c, 0x6c, 0x6f, 0x00, 0x00};
-uint8_t dataTest[8] = {0x61, 0x6c, 0x6c, 0x6f, 0x00, 0x01, 0x27, 0xE5};
+bool rxStandby = true;
+bool rxSync = false;
+bool incompleteByte = true;
+bool rxStart = false;
+uint16_t rxRate = 0;
+uint16_t counter = 0;
+uint8_t bitCounter = 0;
+uint8_t byte = 0;
+uint8_t trameRebuild[36] = {};
+uint8_t trameRebuildCounter = 0;
+
 
 static void insertHeader()
 {
@@ -76,6 +87,95 @@ static void insertCRC()
 	trameInitale[37] = crcResult >> 8;
 	trameInitale[38] =	crcResult & 0xff;
 }
+
+void rebuildMessage(uint8_t bit) {
+	
+	if (incompleteByte) {
+		printf("bit received: %d\n\r", bit);
+		byte <<= 1;
+		byte += bit;
+		bitCounter++;
+		printf("Byte: %02x\n\r", byte);
+		if (bitCounter == 8) {
+			incompleteByte = false;
+		}
+	}
+	if (!incompleteByte) {
+		if (byte == 0b01111110) {
+			if (!rxStart)
+				rxStart = true;
+			
+			else {
+				rxStart = false;
+				trameRebuildCounter = 0;
+				// I AM DONE
+			}
+		}
+		
+		else if (rxStart) {
+			
+			trameRebuild[trameRebuildCounter] = byte;
+			trameRebuildCounter++;
+		}
+		byte = 0;
+		bitCounter = 0;
+		incompleteByte = true;
+	}
+}
+
+void rise()
+{
+	printf("RISE\n\r");
+	if (rxStandby)
+	{
+		rxStandby = false;
+		rxSync = true;
+		timeBoi.start();
+		timeBoi.reset();
+	}
+	
+	else if (rxSync)
+	{
+		rxRate += timeBoi.read_ms();
+		printf("RXRATEREAD: %d\n\r", rxRate);
+		counter++;
+		printf("COUNTER: %d\n\r", counter);
+		timeBoi.reset();
+	}
+	else if (timeBoi.read_ms() > (1	* rxRate)) {
+		timeBoi.reset();
+		rebuildMessage(0);
+	}
+}
+
+void fall()
+{
+	printf("FALL\n\r");
+	if (rxStandby) return;
+	
+	else if (rxSync)
+	{
+		rxRate += timeBoi.read_ms();
+		printf("RXRATEREAD: %d\n\r", rxRate);
+		counter++;
+		printf("COUNTER: %d\n\r", counter);
+		timeBoi.reset();
+		
+		if (counter == 7)
+		{
+			rxRate /= 7;
+			rxSync = false;
+			printf("WE ARE READY TO READ\n\r RX RATE: %d \n\r", rxRate);
+			counter = 0;
+		}
+	}
+	
+	else if (timeBoi.read_ms() > (1 * rxRate)) {
+		timeBoi.reset();
+		rebuildMessage(1);
+	}
+}
+
 int main()
 { 
 	//Préambule	
@@ -94,6 +194,17 @@ int main()
 	//Ecodage Manchester
 	encodageManchester();
 	
-
-
+	pinterrupt.rise(&rise);
+	pinterrupt.fall(&fall);
+	
+	for (int i = 0; i < 80; i++) {
+		for (int index = 0; index < 8; index++) {
+			int penis = ((trameManchester[i] >> (7-index)) & 0x01);
+			cereal = penis;
+			wait_ms(50);
+		}
+	}
+	for (int i = 0; i < 37; i++) {
+		printf("%02x\n\r", trameRebuild[i]);
+	}
 }
