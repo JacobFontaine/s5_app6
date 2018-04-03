@@ -4015,6 +4015,26 @@
               <FileType>5</FileType>
               <FilePath>.\Websocket.h</FilePath>
             </File>
+            <File>
+              <FileName>FrameBuilder.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>.\FrameBuilder.cpp</FilePath>
+            </File>
+            <File>
+              <FileName>crc.cpp</FileName>
+              <FileType>8</FileType>
+              <FilePath>.\crc.cpp</FilePath>
+            </File>
+            <File>
+              <FileName>crc.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\crc.h</FilePath>
+            </File>
+            <File>
+              <FileName>FrameBuilder.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\FrameBuilder.h</FilePath>
+            </File>
           </Files>
         </Group>
       </Groups>

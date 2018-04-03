@@ -7,8 +7,8 @@ Description: Code du Noeud Coordinateur
 *********************************************/
 
 #include "mbed.h"
+#include "FrameBuilder.h"
 
-#define CRC 0xFFFF
 
 DigitalOut cereal(p9);
 InterruptIn  pinterrupt(p14);
@@ -21,7 +21,6 @@ int beginValue=0;
 int endValue=0;
 
 uint8_t message[33] = "Bonjour la gang";
-uint8_t trameInitale[40];
 uint8_t trameManchester[80];
 
 bool rxStandby = true;
@@ -39,59 +38,7 @@ uint8_t trameRebuildCounter = 0;
 uint8_t finalFrame[35] = {};
 
 
-static void insertHeader()
-{
-	trameInitale[2] = 0b00000000;
-	trameInitale[3] = 0x21;
-}
-uint16_t crc16(uint8_t* data, uint8_t length){
-	uint8_t temp;
-	uint16_t crc = CRC;
 
-	for (uint8_t i = 0; i < length; i++) {
-			temp = crc >> 8 ^ data[i];
-			temp ^= temp>>4;
-			crc = (crc << 8) ^ ((uint16_t)(temp << 12)) ^ ((uint16_t)(temp <<5)) ^ ((uint16_t)temp);
-	}
-	return crc;
-}
-
-
-uint8_t get_bit(uint8_t bits, uint8_t pos)
-{
-   if(((bits >> (7-pos)) & 0x01)==1)
-		 return 0b10; 
-	 else
-		 return 0b01;
-}
-
-static void encodageManchester()
-{
-	for(uint8_t i =0; i<40; i++)
-	{	
-		trameManchester[i*2] = (((((get_bit(trameInitale[i],0)<<2) + get_bit(trameInitale[i],1)) << 2)
-													+ get_bit(trameInitale[i],2)) << 2) + get_bit(trameInitale[i],3);
-		
-		trameManchester[i*2+1] = (((((get_bit(trameInitale[i],4)<<2) + get_bit(trameInitale[i],5)) << 2)
-													+ get_bit(trameInitale[i],6)) << 2) + get_bit(trameInitale[i],7);
-	}
-}
-
-
-static void insertMessage()
-{
-	for(uint8_t index =0;index<33;index++)
-	{
-		trameInitale[index+4] = message[index];
-	}
-}
-
-static void insertCRC()
-{
-	uint16_t crcResult = crc16(message,33);
-	trameInitale[37] = crcResult >> 8;
-	trameInitale[38] =	crcResult & 0xff;
-}
 
 void rebuildMessage(uint8_t bit) {
 	
@@ -180,16 +127,23 @@ void fall()
 }
 
 void sendData() {
+	uint16_t leftover = 0;
+	
 	while(1) {
 		sendThread.signal_wait(0x01);
-		for (int i = 0; i < 80; i++) {
-			for (int index = 0; index < 8; index++) {
-				int penis = ((trameManchester[i] >> (7-index)) & 0x01);
-				cereal = penis;
-				wait_ms(1);
+		
+		do {
+			leftover = buildFrame(message, trameManchester, sizeof(message));
+			
+			for (int i = 0; i < 80; i++) {
+				for (int index = 0; index < 8; index++) {
+					int penis = ((trameManchester[i] >> (7-index)) & 0x01);
+					cereal = penis;
+					wait_ms(10);
+				}
 			}
-		}
-		cereal = 0;
+			cereal = 0;
+		} while (leftover > 0);
 	}
 }
 
@@ -199,29 +153,12 @@ void checkButton() {
 
 int main()
 { 
-	//Préambule	
-	trameInitale[0]= 0b01010101;
-	//Start
-	trameInitale[1]= 0b01111110;
-	//En tête
-	insertHeader();
-	//Message
-	insertMessage();
-	//CRC16
-	insertCRC();
-	//End
-	trameInitale[39]= 0b01111110;
-	
-	//Ecodage Manchester
-	encodageManchester();
-	
 	sendThread.start(&sendData);
 	
-	wait(5);
+	wait(2);
 	
 	buttonInterrupt.rise(&checkButton);
 	
 	pinterrupt.rise(&rise);
 	pinterrupt.fall(&fall);
-	
 }
