@@ -15,6 +15,7 @@ InterruptIn  pinterrupt(p14);
 DigitalIn input(p14);
 Timer timeBoi;
 InterruptIn buttonInterrupt(p8);
+Thread sendThread;
 
 int beginValue=0;
 int endValue=0;
@@ -95,11 +96,11 @@ static void insertCRC()
 void rebuildMessage(uint8_t bit) {
 	
 	if (incompleteByte) {
-		printf("bit received: %d\n\r", bit);
+		//printf("bit received: %d\n\r", bit);
 		byte <<= 1;
 		byte += bit;
 		bitCounter++;
-		printf("Byte: %02x\n\r", byte);
+		//printf("Byte: %02x\n\r", byte);
 		if (bitCounter == 8) {
 			incompleteByte = false;
 		}
@@ -116,6 +117,8 @@ void rebuildMessage(uint8_t bit) {
 					printf("%02x\n\r", trameRebuild[i]);
 				}
 				// I AM DONE
+				rxStandby = true;
+				rxRate = 0;
 			}
 		}
 		
@@ -131,7 +134,6 @@ void rebuildMessage(uint8_t bit) {
 
 void rise()
 {
-	printf("RISE\n\r");
 	if (rxStandby)
 	{
 		rxStandby = false;
@@ -143,12 +145,10 @@ void rise()
 	else if (rxSync)
 	{
 		rxRate += timeBoi.read_ms();
-		printf("RXRATEREAD: %d\n\r", rxRate);
 		counter++;
-		printf("COUNTER: %d\n\r", counter);
 		timeBoi.reset();
 	}
-	else if (timeBoi.read_ms() > (0.8	* rxRate)) {
+	else if ((0.8 * rxRate) < timeBoi.read_ms()) {
 		timeBoi.reset();
 		rebuildMessage(0);
 	}
@@ -156,40 +156,45 @@ void rise()
 
 void fall()
 {
-	printf("FALL\n\r");
 	if (rxStandby) return;
 	
 	else if (rxSync)
 	{
 		rxRate += timeBoi.read_ms();
-		printf("RXRATEREAD: %d\n\r", rxRate);
 		counter++;
-		printf("COUNTER: %d\n\r", counter);
 		timeBoi.reset();
 		
 		if (counter == 7)
 		{
 			rxRate /= 7;
 			rxSync = false;
-			printf("WE ARE READY TO READ\n\r RX RATE: %d \n\r", rxRate);
+//			printf("WE ARE READY TO READ\n\r RX RATE: %d \n\r", rxRate);
 			counter = 0;
 		}
 	}
 	
-	else if (timeBoi.read_ms() > (0.8 * rxRate)) {
+	else if ((0.8 * rxRate) < timeBoi.read_ms()) {
 		timeBoi.reset();
 		rebuildMessage(1);
 	}
 }
 
-void checkButton() {
-	for (int i = 0; i < 80; i++) {
-		for (int index = 0; index < 8; index++) {
-			int penis = ((trameManchester[i] >> (7-index)) & 0x01);
-			cereal = penis;
-			wait_ms(40);
+void sendData() {
+	while(1) {
+		sendThread.signal_wait(0x01);
+		for (int i = 0; i < 80; i++) {
+			for (int index = 0; index < 8; index++) {
+				int penis = ((trameManchester[i] >> (7-index)) & 0x01);
+				cereal = penis;
+				wait_ms(1);
+			}
 		}
+		cereal = 0;
 	}
+}
+
+void checkButton() {
+	sendThread.signal_set(0x01);
 }	
 
 int main()
@@ -210,18 +215,13 @@ int main()
 	//Ecodage Manchester
 	encodageManchester();
 	
+	sendThread.start(&sendData);
+	
 	wait(5);
 	
 	buttonInterrupt.rise(&checkButton);
 	
-//	pinterrupt.rise(&rise);
-//	pinterrupt.fall(&fall);
+	pinterrupt.rise(&rise);
+	pinterrupt.fall(&fall);
 	
-//	for (int i = 2; i < 37; i++) {
-//		finalFrame[i-2] = trameRebuild[i];
-//		printf("%02x\n\r", trameRebuild[i]);
-//	}
-//	
-//	int vagine = crc16(finalFrame, 35);
-//	printf("VAGINE VALUE: %d\n\r", vagine);
 }
