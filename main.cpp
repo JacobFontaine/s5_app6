@@ -21,7 +21,7 @@ DigitalOut led(LED1);
 int beginValue=0;
 int endValue=0;
 
-uint8_t message[66] = "Bonjour la gangbbbbbbbbbbbbbbbbbbk";
+uint8_t message[66] = "Bonjour la gangXXXXXXXXXXXXXXXXXXDONE";
 uint8_t trameManchester[80];
 
 bool rxStandby = true;
@@ -63,7 +63,6 @@ void rebuildMessage(uint8_t bit) {
 					printf("%c", trameRebuild[i]);
 				}
 				printf("\n\r");
-//				printf("%s\n", trameRebuild);
 				if (crc16(trameRebuild + 2, 35) != 0)
 					led = 1;
 				else
@@ -147,8 +146,8 @@ void sendData() {
 			
 			for (int i = 0; i < 80; i++) {
 				for (int index = 0; index < 8; index++) {
-					int penis = ((trameManchester[i] >> (7-index)) & 0x01);
-					cereal = penis;
+					int bit = ((trameManchester[i] >> (7-index)) & 0x01);
+					cereal = bit;
 					wait_ms(10);
 				}
 			}
