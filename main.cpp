@@ -8,7 +8,7 @@ Description: Code du Noeud Coordinateur
 
 #include "mbed.h"
 #include "FrameBuilder.h"
-
+#include "crc.h"
 
 DigitalOut cereal(p9);
 InterruptIn  pinterrupt(p14);
@@ -16,11 +16,12 @@ DigitalIn input(p14);
 Timer timeBoi;
 InterruptIn buttonInterrupt(p8);
 Thread sendThread;
+DigitalOut led(LED1);
 
 int beginValue=0;
 int endValue=0;
 
-uint8_t message[33] = "Bonjour la gang";
+uint8_t message[66] = "Bonjour la gangbbbbbbbbbbbbbbbbbbk";
 uint8_t trameManchester[80];
 
 bool rxStandby = true;
@@ -36,8 +37,6 @@ uint8_t frameHeader[2] = {};
 uint8_t trameRebuild[37] = {};
 uint8_t trameRebuildCounter = 0;
 uint8_t finalFrame[35] = {};
-
-
 
 
 void rebuildMessage(uint8_t bit) {
@@ -60,9 +59,15 @@ void rebuildMessage(uint8_t bit) {
 			else {
 				rxStart = false;
 				trameRebuildCounter = 0;
-				for (int i = 2; i < 37; i++) {
-					printf("%02x\n\r", trameRebuild[i]);
+				for (int i = 2; i < 35; i++) {
+					printf("%c", trameRebuild[i]);
 				}
+				printf("\n\r");
+//				printf("%s\n", trameRebuild);
+				if (crc16(trameRebuild + 2, 35) != 0)
+					led = 1;
+				else
+					led = 0;
 				// I AM DONE
 				rxStandby = true;
 				rxRate = 0;
@@ -133,7 +138,12 @@ void sendData() {
 		sendThread.signal_wait(0x01);
 		
 		do {
-			leftover = buildFrame(message, trameManchester, sizeof(message));
+			if (leftover > 0) {
+				leftover = buildFrame(message + leftover, trameManchester, leftover);
+			}
+			else {
+				leftover = buildFrame(message, trameManchester, sizeof(message));
+			}
 			
 			for (int i = 0; i < 80; i++) {
 				for (int index = 0; index < 8; index++) {
@@ -143,6 +153,7 @@ void sendData() {
 				}
 			}
 			cereal = 0;
+			wait_ms(200);
 		} while (leftover > 0);
 	}
 }
